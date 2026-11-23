@@ -1,255 +1,307 @@
 import { motion } from "framer-motion";
-import { BookOpen, Search, Star, TrendingUp, Zap, Award, Clock, ArrowRight } from "lucide-react";
+import { ArrowRight, Award, BookOpen, Clock, Globe2, Sparkles, Star, TrendingUp, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
-import heroImage from "@/assets/hero-books.jpg";
-import readingCorner from "@/assets/reading-corner.jpg";
-import { booksData } from "@/data/books";
 import BookCard from "@/components/book-card";
+import { AnimatedNumber } from "@/components/ui/animated-number";
+import { BookGridSkeleton, Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
+import { useBooks, useStoreStats } from "@/hooks/use-books";
+import { useDocumentTitle } from "@/hooks/use-document-title";
+
+const fadeUp = {
+	initial: { opacity: 0, y: 24 },
+	whileInView: { opacity: 1, y: 0 },
+	viewport: { once: true, margin: "-60px" },
+};
 
 const HomePage = () => {
-  const featuredBooks = booksData.filter((book) => book.bestseller).slice(0, 4);
-  const trendingBooks = booksData.filter((book) => book.trending).slice(0, 6);
-  const newReleases = booksData.filter((book) => book.newRelease).slice(0, 4);
+	useDocumentTitle("Discover your next great read");
 
-  return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden  via-blue-600 to-indigo-700">
-        <div className="absolute inset-0 opacity-20">
-          <img src={heroImage} alt="Books" className="w-full h-full object-cover" />
-        </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="space-y-6"
-            >
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-primary-foreground leading-tight text-balance">
-                Discover Your Next Great Read
-              </h1>
-              <p className="text-lg text-primary-foreground/80 max-w-xl text-balance">
-                Access thousands of e-books across all genres. Read anywhere, anytime on any device.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <Link
-                  to="/catalog"
-                  className="inline-flex bg-white items-center gap-2 px-6 py-3 rounded-lg bg-accent text-accent-foreground font-medium hover:opacity-90 transition-smooth shadow-lg hover:shadow-glow"
-                >
-                  Browse Catalog
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
-                <Link
-                  to="/signup"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-primary-foreground/10 backdrop-blur-sm text-primary-foreground font-medium hover:bg-primary-foreground/20 transition-smooth border border-primary-foreground/20"
-                >
-                  Get Started Free
-                </Link>
-              </div>
-            </motion.div>
+	const trending = useBooks({ tag: "trending", limit: 6 });
+	const bestsellers = useBooks({ tag: "bestseller", limit: 4 });
+	const newReleases = useBooks({ tag: "new", limit: 4 });
+	const stats = useStoreStats();
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="hidden lg:block"
-            >
-              <img
-                src={readingCorner}
-                alt="Reading"
-                className="rounded-2xl shadow-2xl"
-              />
-            </motion.div>
-          </div>
-        </div>
-      </section>
+	const heroBooks = (trending.data?.books ?? []).slice(0, 3);
 
-      {/* Stats */}
-      <section className="py-12 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20  border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { icon: BookOpen, label: "Books", value: "20K+" },
-              { icon: Award, label: "Authors", value: "5K+" },
-              { icon: Star, label: "Reviews", value: "100K+" },
-              { icon: Clock, label: "Reading Time", value: "24/7" },
-            ].map((stat, index) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="text-center p-6 rounded-xl bg-background border border-border hover:shadow-elegant transition-smooth"
-              >
-                <stat.icon className="h-8 w-8 mx-auto mb-3 text-primary" />
-                <div className="text-3xl font-bold text-foreground mb-1">{stat.value}</div>
-                <div className="text-muted-foreground">{stat.label}</div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+	return (
+		<div className="min-h-screen">
+			<section className="relative overflow-hidden">
+				<div className="absolute inset-0 bg-gradient-to-br from-[hsl(230,50%,18%)] via-[hsl(240,45%,24%)] to-[hsl(268,45%,32%)]" />
+				<div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_20%_20%,hsl(35_90%_65%_/_0.5),transparent_45%),radial-gradient(circle_at_80%_30%,hsl(265_70%_60%_/_0.5),transparent_45%)]" />
+				<motion.div
+					className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-accent/30 blur-3xl"
+					animate={{ y: [0, 30, 0], scale: [1, 1.15, 1] }}
+					transition={{ duration: 14, repeat: Number.POSITIVE_INFINITY }}
+				/>
 
-      {/* Trending Books */}
-      <section className="py-20 bg-gradient-to-b from-transparent to-orange-50/50 dark:to-orange-950/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-10">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="h-6 w-6 text-accent" />
-                <h2 className="text-3xl font-bold text-foreground">Trending Now</h2>
-              </div>
-              <p className="text-muted-foreground">Most popular books this week</p>
-            </div>
-            <Link
-              to="/catalog"
-              className="hidden sm:flex items-center gap-2 text-primary font-medium hover:gap-3 transition-smooth"
-            >
-              View All
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-            {trendingBooks.map((book, index) => (
-              <motion.div
-                key={book.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Link to={`/book/${book.id}`} className="group block">
-                  <div className="relative rounded-lg overflow-hidden shadow-elegant group-hover:shadow-glow transition-smooth">
-                    <img
-                      src={book.cover}
-                      alt={book.title}
-                      className="w-full aspect-[2/3] object-cover group-hover:scale-105 transition-smooth duration-500"
-                    />
-                    <div className="absolute top-2 right-2">
-                      <span className="px-2 py-1 rounded-full bg-accent text-accent-foreground text-xs font-medium flex items-center gap-1">
-                        <Zap className="h-3 w-3" />
-                        Hot
-                      </span>
-                    </div>
-                  </div>
-                  <h3 className="mt-3 font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-smooth">
-                    {book.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">{book.author}</p>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-1">
-                      <Star className="h-4 w-4 fill-accent text-accent" />
-                      <span className="text-sm font-medium">{book.rating}</span>
-                    </div>
-                    <span className="text-lg font-bold text-primary">${book.price}</span>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+				<div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+					<div className="grid items-center gap-14 lg:grid-cols-2">
+						<motion.div
+							initial={{ opacity: 0, y: 24 }}
+							animate={{ opacity: 1, y: 0 }}
+							transition={{ duration: 0.6 }}
+							className="space-y-7"
+						>
+							<motion.span
+								initial={{ opacity: 0, scale: 0.9 }}
+								animate={{ opacity: 1, scale: 1 }}
+								transition={{ delay: 0.1 }}
+								className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm font-medium text-white/90 backdrop-blur"
+							>
+								<Sparkles className="h-4 w-4 text-accent" />A handpicked shelf for every mood.
+							</motion.span>
 
-      {/* New Releases */}
-      {newReleases.length > 0 && (
-        <section className="py-20 bg-gradient-to-br from-green-50 via-teal-50 to-cyan-50 dark:from-green-950/10 dark:via-teal-950/10 dark:to-cyan-950/10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between mb-10">
-              <div>
-                <h2 className="text-3xl font-bold text-foreground mb-2">New Releases</h2>
-                <p className="text-muted-foreground">Fresh additions to our collection</p>
-              </div>
-              <Link
-                to="/catalog"
-                className="hidden sm:flex items-center gap-2 text-primary font-medium hover:gap-3 transition-smooth"
-              >
-                See More
-                <ArrowRight className="h-5 w-5" />
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {newReleases.map((book, index) => (
-                <motion.div
-                  key={book.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <BookCard {...book} category={book.category} />
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
+							<h1 className="text-balance text-4xl font-bold leading-[1.05] text-white md:text-5xl lg:text-6xl">
+								Discover your next{" "}
+								<span className="bg-gradient-to-r from-accent via-pink-300 to-purple-300 bg-clip-text text-transparent">
+									great read
+								</span>
+							</h1>
+							<p className="max-w-xl text-lg text-white/75">
+								Explore bestsellers, timeless classics, and fresh releases. Preview any book for free, then build a library that
+								travels with you.
+							</p>
 
-      {/* Bestsellers */}
-      <section className="py-20 bg-gradient-to-t from-pink-50/50 to-transparent dark:from-pink-950/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-10">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Award className="h-6 w-6 text-primary" />
-                <h2 className="text-3xl font-bold text-foreground">Bestsellers</h2>
-              </div>
-              <p className="text-muted-foreground">Our most loved books</p>
-            </div>
-            <Link
-              to="/catalog"
-              className="hidden sm:flex items-center gap-2 text-primary font-medium hover:gap-3 transition-smooth"
-            >
-              View All
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredBooks.map((book, index) => (
-              <motion.div
-                key={book.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <BookCard {...book} category={book.category} />
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+							<div className="flex flex-wrap gap-4">
+								<Link
+									to="/catalog"
+									className="group inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3.5 font-semibold text-accent-foreground shadow-lg transition hover:scale-[1.02] hover:shadow-glow"
+								>
+									Browse catalog
+									<ArrowRight className="h-5 w-5 transition group-hover:translate-x-1" />
+								</Link>
+								<Link
+									to="/signup"
+									className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-6 py-3.5 font-semibold text-white backdrop-blur transition hover:bg-white/20"
+								>
+									Start reading free
+								</Link>
+							</div>
 
+							<div className="flex flex-wrap items-center gap-6 pt-2 text-sm text-white/70">
+								<span className="inline-flex items-center gap-2">
+									<Star className="h-4 w-4 fill-accent text-accent" />
+									Loved by early readers
+								</span>
+								<span className="inline-flex items-center gap-2">
+									<Globe2 className="h-4 w-4 text-accent" />
+									Read on any device
+								</span>
+							</div>
+						</motion.div>
 
-      {/* CTA Section */}
-      <section className="py-20">
-  <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className="p-12 rounded-2xl bg-gradient-to-r from-pink-300 via-purple-300 to-cyan-300 shadow-2xl space-y-6 transition-all hover:shadow-3xl"
-    >
-      <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
-        Start Your Reading Journey Today
-      </h2>
-      <p className="text-lg text-gray-800/90 max-w-2xl mx-auto">
-        Join thousands of readers worldwide. Get access to unlimited books for just $9.99/month.
-      </p>
-      <Link
-        to="/signup"
-        className="inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-purple-400 text-white font-medium hover:bg-purple-500 transition-all shadow-lg hover:shadow-xl"
-      >
-        Start Free Trial
-        <ArrowRight className="h-5 w-5" />
-      </Link>
-    </motion.div>
-  </div>
-</section>
+						<div className="relative hidden h-[420px] lg:block">
+							{heroBooks.map((book, index) => (
+								<motion.div
+									key={book.id}
+									initial={{ opacity: 0, y: 60, rotate: 0 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{ delay: 0.2 + index * 0.15, duration: 0.6 }}
+									className="absolute"
+									style={{
+										left: `${index * 30}%`,
+										top: `${index === 1 ? 0 : 12}%`,
+										zIndex: 3 - index,
+									}}
+								>
+									<motion.div
+										animate={{ y: [0, index % 2 === 0 ? -14 : 12, 0] }}
+										transition={{
+											duration: 6 + index,
+											repeat: Number.POSITIVE_INFINITY,
+											ease: "easeInOut",
+										}}
+										className="w-48 overflow-hidden rounded-2xl border border-white/20 shadow-2xl"
+										style={{ rotate: `${index * 5 - 5}deg` }}
+									>
+										<img src={book.cover} alt={book.title} className="aspect-[2/3] w-full object-cover" />
+									</motion.div>
+								</motion.div>
+							))}
 
-    </div>
-  );
+							<motion.div
+								initial={{ opacity: 0, scale: 0.9 }}
+								animate={{ opacity: 1, scale: 1 }}
+								transition={{ delay: 0.7 }}
+								className="absolute bottom-0 left-0 z-10 flex items-center gap-3 rounded-2xl border border-white/20 bg-white/90 p-4 shadow-xl backdrop-blur"
+							>
+								<div className="rounded-xl bg-emerald-500/15 p-2.5 text-emerald-600">
+									<TrendingUp className="h-5 w-5" />
+								</div>
+								<div>
+									<p className="text-sm font-bold text-slate-900">+18% this week</p>
+									<p className="text-xs text-slate-500">Reading activity</p>
+								</div>
+							</motion.div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section className="border-b border-border bg-card/50 py-10 backdrop-blur">
+				<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+					<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+						{[
+							{ icon: BookOpen, label: "Books", value: stats.data?.books ?? 20, suffix: "" },
+							{ icon: Award, label: "Authors", value: stats.data?.authors ?? 20, suffix: "" },
+							{ icon: Star, label: "Reviews", value: stats.data?.reviews ?? 100000, suffix: "+" },
+							{ icon: Clock, label: "Reading access", value: 24, suffix: "/7" },
+						].map((stat, index) => (
+							<motion.div
+								key={stat.label}
+								initial={{ opacity: 0, y: 16 }}
+								whileInView={{ opacity: 1, y: 0 }}
+								viewport={{ once: true }}
+								transition={{ delay: index * 0.08 }}
+								className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
+							>
+								<div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+									<stat.icon className="h-5 w-5" />
+								</div>
+								<div>
+									<div className="text-xl font-bold text-foreground">
+										<AnimatedNumber value={stat.value} suffix={stat.suffix} />
+									</div>
+									<div className="text-xs text-muted-foreground">{stat.label}</div>
+								</div>
+							</motion.div>
+						))}
+					</div>
+				</div>
+			</section>
+
+			<section className="py-20">
+				<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+					<div className="mb-10 flex items-end justify-between gap-4">
+						<div>
+							<div className="mb-2 flex items-center gap-2 text-accent">
+								<TrendingUp className="h-5 w-5" />
+								<span className="text-sm font-semibold uppercase tracking-wider">Hot right now</span>
+							</div>
+							<h2 className="text-3xl font-bold text-foreground md:text-4xl">Trending this week</h2>
+							<p className="mt-2 text-muted-foreground">The books everyone is talking about.</p>
+						</div>
+						<Link
+							to="/catalog"
+							className="hidden items-center gap-2 font-semibold text-primary transition hover:gap-3 sm:flex"
+						>
+							View all <ArrowRight className="h-5 w-5" />
+						</Link>
+					</div>
+
+					{trending.isLoading ? (
+						<BookGridSkeleton count={6} />
+					) : trending.isError ? (
+						<ErrorState onRetry={() => trending.refetch()} />
+					) : (
+						<div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-6">
+							{(trending.data?.books ?? []).map((book, index) => (
+								<motion.div key={book.id} {...fadeUp} transition={{ delay: Math.min(index * 0.07, 0.4) }}>
+									<BookCard {...book} />
+								</motion.div>
+							))}
+						</div>
+					)}
+				</div>
+			</section>
+
+			<section className="relative overflow-hidden border-y border-border bg-gradient-to-br from-emerald-500/5 via-transparent to-cyan-500/10 py-20">
+				<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+					<div className="mb-10 flex items-end justify-between gap-4">
+						<div>
+							<div className="mb-2 flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+								<Zap className="h-5 w-5" />
+								<span className="text-sm font-semibold uppercase tracking-wider">Fresh off the press</span>
+							</div>
+							<h2 className="text-3xl font-bold text-foreground md:text-4xl">New releases</h2>
+							<p className="mt-2 text-muted-foreground">Handpicked additions to the ReadVerse shelves.</p>
+						</div>
+						<Link
+							to="/catalog"
+							className="hidden items-center gap-2 font-semibold text-primary transition hover:gap-3 sm:flex"
+						>
+							See more <ArrowRight className="h-5 w-5" />
+						</Link>
+					</div>
+
+					{newReleases.isLoading ? (
+						<BookGridSkeleton count={4} />
+					) : newReleases.isError ? (
+						<ErrorState onRetry={() => newReleases.refetch()} />
+					) : (
+						<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+							{(newReleases.data?.books ?? []).map((book, index) => (
+								<motion.div key={book.id} {...fadeUp} transition={{ delay: index * 0.08 }}>
+									<BookCard {...book} />
+								</motion.div>
+							))}
+						</div>
+					)}
+				</div>
+			</section>
+
+			<section className="py-20">
+				<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+					<div className="mb-10">
+						<div className="mb-2 flex items-center gap-2 text-primary">
+							<Award className="h-5 w-5" />
+							<span className="text-sm font-semibold uppercase tracking-wider">Reader favorites</span>
+						</div>
+						<h2 className="text-3xl font-bold text-foreground md:text-4xl">Bestsellers</h2>
+						<p className="mt-2 text-muted-foreground">The most loved books in our collection.</p>
+					</div>
+
+					{bestsellers.isLoading ? (
+						<BookGridSkeleton count={4} />
+					) : bestsellers.isError ? (
+						<ErrorState onRetry={() => bestsellers.refetch()} />
+					) : (
+						<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+							{(bestsellers.data?.books ?? []).map((book, index) => (
+								<motion.div key={book.id} {...fadeUp} transition={{ delay: index * 0.08 }}>
+									<BookCard {...book} />
+								</motion.div>
+							))}
+						</div>
+					)}
+				</div>
+			</section>
+
+			<section className="pb-20">
+				<div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+					<motion.div
+						{...fadeUp}
+						className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[hsl(230,50%,18%)] via-[hsl(250,45%,26%)] to-[hsl(280,45%,34%)] p-10 text-center text-white shadow-2xl md:p-14"
+					>
+						<div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_15%_20%,hsl(35_90%_65%_/_0.4),transparent_40%),radial-gradient(circle_at_85%_80%,hsl(190_80%_60%_/_0.35),transparent_40%)]" />
+						<div className="relative space-y-5">
+							<h2 className="text-3xl font-bold md:text-4xl">Your next chapter starts today</h2>
+							<p className="mx-auto max-w-2xl text-white/75">
+								Join thousands of readers building their personal libraries. Free to start, instant access, and beautifully
+								simple reading.
+							</p>
+							<div className="flex flex-wrap justify-center gap-3 pt-2">
+								<Link
+									to="/signup"
+									className="inline-flex items-center gap-2 rounded-xl bg-accent px-7 py-3.5 font-semibold text-accent-foreground transition hover:scale-[1.02] hover:shadow-glow"
+								>
+									Create free account <ArrowRight className="h-5 w-5" />
+								</Link>
+								<Link
+									to="/catalog"
+									className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-7 py-3.5 font-semibold text-white backdrop-blur transition hover:bg-white/20"
+								>
+									Explore books
+								</Link>
+							</div>
+							{stats.isLoading && <Skeleton className="mx-auto mt-2 h-3 w-40 bg-white/20" />}
+						</div>
+					</motion.div>
+				</div>
+			</section>
+		</div>
+	);
 };
 
 export default HomePage;

@@ -1,266 +1,368 @@
-import { motion } from "framer-motion";
-import { Search, SlidersHorizontal, X } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import BookCard from "@/components/book-card";
-import { booksData, categories } from "@/data/books";
+import { BookGridSkeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { useBooks, useCategories } from "@/hooks/use-books";
+import { useDebouncedValue } from "@/hooks/use-debounce";
+import { useDocumentTitle } from "@/hooks/use-document-title";
+import type { BookQuery } from "@/lib/types";
+
+const SORTS: Array<{ value: NonNullable<BookQuery["sort"]>; label: string }> = [
+	{ value: "popular", label: "Most popular" },
+	{ value: "rating", label: "Highest rated" },
+	{ value: "price-low", label: "Price: low to high" },
+	{ value: "price-high", label: "Price: high to low" },
+	{ value: "newest", label: "Newest first" },
+	{ value: "title", label: "Title A–Z" },
+];
 
 const CatalogPage = () => {
-  const [searchParams] = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [sortBy, setSortBy] = useState<"popular" | "price-low" | "price-high" | "rating">("popular");
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 50]);
-  const [minRating, setMinRating] = useState(0);
-  const [showFilters, setShowFilters] = useState(false);
+	useDocumentTitle("Book catalog");
+	const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => {
-    const query = searchParams.get("search");
-    if (query) {
-      setSearchQuery(query);
-    }
-  }, [searchParams]);
+	const search = searchParams.get("search") ?? "";
+	const category = searchParams.get("category") ?? "All";
+	const sort = (searchParams.get("sort") as BookQuery["sort"]) ?? "popular";
+	const minRating = Number(searchParams.get("minRating") ?? 0);
+	const maxPrice = Number(searchParams.get("maxPrice") ?? 50);
+	const page = Math.max(1, Number(searchParams.get("page") ?? 1));
 
-  // Filter and sort books
-  const filteredBooks = useMemo(() => {
-    let filtered = booksData.filter((book) => {
-      const matchesSearch =
-        searchQuery === "" ||
-        book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.category.toLowerCase().includes(searchQuery.toLowerCase());
+	const [searchInput, setSearchInput] = useState(search);
+	const [showFilters, setShowFilters] = useState(false);
+	const debouncedSearch = useDebouncedValue(searchInput, 350);
 
-      const matchesCategory =
-        selectedCategory === "All" || book.category === selectedCategory;
+	const { data: categoryData } = useCategories();
+	const categories = useMemo(() => ["All", ...(categoryData?.map((item) => item.category) ?? [])], [categoryData]);
 
-      const matchesPrice = book.price >= priceRange[0] && book.price <= priceRange[1];
+	useEffect(() => {
+		setSearchInput(search);
+	}, [search]);
 
-      const matchesRating = book.rating >= minRating;
+	const updateFilters = useCallback(
+		(patch: Record<string, string | number | undefined | null>) => {
+			setSearchParams(
+				(previous) => {
+					const next = new URLSearchParams(previous);
+					for (const [key, value] of Object.entries(patch)) {
+						const isDefault =
+							value === undefined ||
+							value === null ||
+							value === "" ||
+							value === "All" ||
+							(key === "page" && Number(value) === 1) ||
+							(key === "minRating" && Number(value) === 0) ||
+							(key === "maxPrice" && Number(value) === 50);
+						if (isDefault) next.delete(key);
+						else next.set(key, String(value));
+					}
+					return next;
+				},
+				{ replace: true },
+			);
+		},
+		[setSearchParams],
+	);
 
-      return matchesSearch && matchesCategory && matchesPrice && matchesRating;
-    });
+	useEffect(() => {
+		if (debouncedSearch !== search) {
+			updateFilters({ search: debouncedSearch || undefined, page: 1 });
+		}
+	}, [debouncedSearch, search, updateFilters]);
 
-    // Sort
-    switch (sortBy) {
-      case "price-low":
-        filtered.sort((a, b) => a.price - b.price);
-        break;
-      case "price-high":
-        filtered.sort((a, b) => b.price - a.price);
-        break;
-      case "rating":
-        filtered.sort((a, b) => b.rating - a.rating);
-        break;
-      case "popular":
-        filtered.sort((a, b) => b.reviews - a.reviews);
-        break;
-    }
+	const query = useBooks({
+		search: search || undefined,
+		category: category === "All" ? undefined : category,
+		sort,
+		minRating: minRating || undefined,
+		maxPrice: maxPrice < 50 ? maxPrice : undefined,
+		page,
+		limit: 12,
+	});
 
-    return filtered;
-  }, [searchQuery, selectedCategory, sortBy, priceRange, minRating]);
+	const activeFiltersCount = (category !== "All" ? 1 : 0) + (minRating > 0 ? 1 : 0) + (maxPrice < 50 ? 1 : 0);
 
-  const activeFiltersCount = 
-    (selectedCategory !== "All" ? 1 : 0) +
-    (minRating > 0 ? 1 : 0) +
-    (priceRange[0] > 0 || priceRange[1] < 50 ? 1 : 0);
+	const clearFilters = () => {
+		setSearchInput("");
+		setSearchParams({}, { replace: true });
+	};
 
-  const clearFilters = () => {
-    setSelectedCategory("All");
-    setMinRating(0);
-    setPriceRange([0, 50]);
-    setSearchQuery("");
-  };
+	const books = query.data?.books ?? [];
+	const totalPages = query.data?.totalPages ?? 1;
+	const total = query.data?.total ?? 0;
 
-  return (
-    <div className="min-h-screen py-12 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-blue-950/20 dark:via-purple-950/20 dark:to-pink-950/20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <h1 className="text-4xl font-bold text-foreground mb-2">Book Catalog</h1>
-          <p className="text-muted-foreground">Discover your next favorite book from our collection</p>
-        </motion.div>
+	const goToPage = (next: number) => {
+		updateFilters({ page: next });
+		window.scrollTo({ top: 0, behavior: "smooth" });
+	};
 
-        {/* Search & Filters */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-8 space-y-4"
-        >
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search by title, author, or category..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 rounded-lg bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-smooth"
-            />
-          </div>
+	const pageNumbers = useMemo(() => {
+		const pages: number[] = [];
+		const start = Math.max(1, Math.min(page - 1, totalPages - 2));
+		for (let i = start; i <= Math.min(totalPages, start + 2); i += 1) {
+			pages.push(i);
+		}
+		return pages;
+	}, [page, totalPages]);
 
-          {/* Filter & Sort Bar */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-card border border-border text-foreground hover:bg-muted transition-smooth whitespace-nowrap"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Filters
-              {activeFiltersCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
-                  {activeFiltersCount}
-                </span>
-              )}
-            </button>
+	return (
+		<div className="min-h-screen pb-16 pt-10">
+			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+				<motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+					<div className="mb-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
+						<Sparkles className="h-3.5 w-3.5" /> Curated collection
+					</div>
+					<h1 className="text-4xl font-bold text-foreground md:text-5xl">Find your next story</h1>
+					<p className="mt-3 max-w-2xl text-muted-foreground">
+						Search by title, author, or category. Filter by price and rating to find exactly what you are in the mood for.
+					</p>
+				</motion.div>
 
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-4 py-2 rounded-lg bg-card border border-border text-foreground hover:bg-muted transition-smooth cursor-pointer"
-            >
-              <option value="popular">Most Popular</option>
-              <option value="rating">Highest Rated</option>
-              <option value="price-low">Price: Low to High</option>
-              <option value="price-high">Price: High to Low</option>
-            </select>
+				<motion.div
+					initial={{ opacity: 0, y: 16 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ delay: 0.05 }}
+					className="mb-8 space-y-4 rounded-2xl border border-border bg-card/80 p-4 shadow-elegant backdrop-blur"
+				>
+					<div className="relative">
+						<Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+						<input
+							type="search"
+							placeholder="Search by title, author, or category…"
+							value={searchInput}
+							onChange={(event) => setSearchInput(event.target.value)}
+							className="w-full rounded-xl border border-border bg-background py-3 pl-12 pr-10 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+						/>
+						{searchInput && (
+							<button
+								type="button"
+								onClick={() => setSearchInput("")}
+								className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted"
+								aria-label="Clear search"
+							>
+								<X className="h-4 w-4" />
+							</button>
+						)}
+					</div>
 
-            {activeFiltersCount > 0 && (
-              <button
-                onClick={clearFilters}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-muted-foreground hover:text-foreground transition-smooth"
-              >
-                <X className="h-4 w-4" />
-                Clear all
-              </button>
-            )}
-          </div>
+					<div className="flex flex-wrap items-center gap-3">
+						<button
+							type="button"
+							onClick={() => setShowFilters((open) => !open)}
+							className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-muted"
+						>
+							<SlidersHorizontal className="h-4 w-4" />
+							Filters
+							{activeFiltersCount > 0 && (
+								<span className="rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
+									{activeFiltersCount}
+								</span>
+							)}
+						</button>
 
-          {/* Advanced Filters Panel */}
-          {showFilters && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="p-6 rounded-xl bg-card border border-border space-y-6"
-            >
-              {/* Categories */}
-              <div>
-                <h3 className="font-semibold text-foreground mb-3">Category</h3>
-                <div className="flex flex-wrap gap-2">
-                  {categories.map((category) => (
-                    <button
-                      key={category}
-                      onClick={() => setSelectedCategory(category)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-smooth ${
-                        selectedCategory === category
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                      }`}
-                    >
-                      {category}
-                    </button>
-                  ))}
-                </div>
-              </div>
+						<label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+							Sort
+							<select
+								value={sort}
+								onChange={(event) =>
+									updateFilters({
+										sort: event.target.value === "popular" ? undefined : event.target.value,
+										page: 1,
+									})
+								}
+								className="cursor-pointer rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+							>
+								{SORTS.map((option) => (
+									<option key={option.value} value={option.value}>
+										{option.label}
+									</option>
+								))}
+							</select>
+						</label>
 
-              {/* Price Range */}
-              <div>
-                <h3 className="font-semibold text-foreground mb-3">
-                  Price Range: ${priceRange[0]} - ${priceRange[1]}
-                </h3>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="0"
-                    max="50"
-                    value={priceRange[0]}
-                    onChange={(e) => setPriceRange([parseInt(e.target.value), priceRange[1]])}
-                    className="flex-1"
-                  />
-                  <input
-                    type="range"
-                    min="0"
-                    max="50"
-                    value={priceRange[1]}
-                    onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
+						{(activeFiltersCount > 0 || search) && (
+							<button
+								type="button"
+								onClick={clearFilters}
+								className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+							>
+								<X className="h-4 w-4" /> Clear all
+							</button>
+						)}
 
-              {/* Rating Filter */}
-              <div>
-                <h3 className="font-semibold text-foreground mb-3">Minimum Rating</h3>
-                <div className="flex gap-2">
-                  {[0, 3, 4, 4.5].map((rating) => (
-                    <button
-                      key={rating}
-                      onClick={() => setMinRating(rating)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-smooth ${
-                        minRating === rating
-                          ? "bg-accent text-accent-foreground"
-                          : "bg-muted text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {rating === 0 ? "All" : `${rating}+ ★`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </motion.div>
+						<span className="ml-auto text-sm text-muted-foreground">
+							{query.isFetching && !query.isLoading
+								? "Updating results…"
+								: `${total.toLocaleString()} book${total === 1 ? "" : "s"}`}
+						</span>
+					</div>
 
-        {/* Results Count */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="mb-6"
-        >
-          <p className="text-muted-foreground">
-            Showing <span className="font-semibold text-foreground">{filteredBooks.length}</span> of{" "}
-            <span className="font-semibold text-foreground">{booksData.length}</span> books
-          </p>
-        </motion.div>
+					<AnimatePresence initial={false}>
+						{showFilters && (
+							<motion.div
+								initial={{ opacity: 0, height: 0 }}
+								animate={{ opacity: 1, height: "auto" }}
+								exit={{ opacity: 0, height: 0 }}
+								className="overflow-hidden"
+							>
+								<div className="space-y-6 border-t border-border pt-5">
+									<div>
+										<h3 className="mb-3 text-sm font-semibold text-foreground">Category</h3>
+										<div className="flex flex-wrap gap-2">
+											{categories.map((item) => (
+												<button
+													key={item}
+													type="button"
+													onClick={() =>
+														updateFilters({
+															category: item === "All" ? undefined : item,
+															page: 1,
+														})
+													}
+													className={`rounded-lg px-3.5 py-2 text-sm font-medium transition ${
+														category === item
+															? "bg-primary text-primary-foreground"
+															: "bg-muted text-muted-foreground hover:text-foreground"
+													}`}
+												>
+													{item}
+												</button>
+											))}
+										</div>
+									</div>
 
-        {/* Books Grid */}
-        {filteredBooks.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {filteredBooks.map((book, index) => (
-              <motion.div
-                key={book.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(index * 0.05, 0.5) }}
-              >
-                <BookCard {...book} />
-              </motion.div>
-            ))}
-          </div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-16"
-          >
-            <p className="text-xl text-muted-foreground mb-4">No books found matching your criteria</p>
-            <button
-              onClick={clearFilters}
-              className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-smooth"
-            >
-              Clear Filters
-            </button>
-          </motion.div>
-        )}
-      </div>
-    </div>
-  );
+									<div className="grid gap-6 sm:grid-cols-2">
+										<div>
+											<h3 className="mb-3 text-sm font-semibold text-foreground">Max price: ${maxPrice}</h3>
+											<input
+												type="range"
+												min={0}
+												max={50}
+												step={1}
+												value={maxPrice}
+												onChange={(event) =>
+													updateFilters({
+														maxPrice: Number(event.target.value),
+														page: 1,
+													})
+												}
+												className="w-full accent-primary"
+												aria-label="Maximum price"
+											/>
+										</div>
+
+										<div>
+											<h3 className="mb-3 text-sm font-semibold text-foreground">Minimum rating</h3>
+											<div className="flex gap-2">
+												{[0, 3, 4, 4.5].map((rating) => (
+													<button
+														key={rating}
+														type="button"
+														onClick={() => updateFilters({ minRating: rating, page: 1 })}
+														className={`rounded-lg px-3.5 py-2 text-sm font-medium transition ${
+															minRating === rating
+																? "bg-accent text-accent-foreground"
+																: "bg-muted text-muted-foreground hover:text-foreground"
+														}`}
+													>
+														{rating === 0 ? "All" : `${rating}+ ★`}
+													</button>
+												))}
+											</div>
+										</div>
+									</div>
+								</div>
+							</motion.div>
+						)}
+					</AnimatePresence>
+				</motion.div>
+
+				{query.isLoading ? (
+					<BookGridSkeleton count={8} />
+				) : query.isError ? (
+					<ErrorState
+						title="Could not load the catalog"
+						message="Check that the API is running and try again."
+						onRetry={() => query.refetch()}
+					/>
+				) : books.length === 0 ? (
+					<EmptyState
+						icon={Search}
+						title="No books match those filters"
+						description="Try widening your price range or searching for a different author or title."
+						action={
+							<button
+								type="button"
+								onClick={clearFilters}
+								className="rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground transition hover:opacity-90"
+							>
+								Clear filters
+							</button>
+						}
+					/>
+				) : (
+					<motion.div
+						key={`${search}-${category}-${sort}-${minRating}-${maxPrice}-${page}`}
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4"
+					>
+						{books.map((book, index) => (
+							<motion.div
+								key={book.id}
+								initial={{ opacity: 0, y: 18 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{ delay: Math.min(index * 0.04, 0.4) }}
+							>
+								<BookCard {...book} />
+							</motion.div>
+						))}
+					</motion.div>
+				)}
+
+				{totalPages > 1 && (
+					<div className="mt-12 flex items-center justify-center gap-2">
+						<button
+							type="button"
+							onClick={() => goToPage(page - 1)}
+							disabled={page === 1}
+							className="inline-flex items-center gap-1 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+						>
+							<ChevronLeft className="h-4 w-4" /> Previous
+						</button>
+
+						{pageNumbers.map((pageNumber) => (
+							<button
+								key={pageNumber}
+								type="button"
+								onClick={() => goToPage(pageNumber)}
+								className={`h-10 w-10 rounded-xl text-sm font-semibold transition ${
+									pageNumber === page
+										? "bg-primary text-primary-foreground"
+										: "border border-border bg-card text-foreground hover:bg-muted"
+								}`}
+								aria-current={pageNumber === page ? "page" : undefined}
+							>
+								{pageNumber}
+							</button>
+						))}
+
+						<button
+							type="button"
+							onClick={() => goToPage(page + 1)}
+							disabled={page === totalPages}
+							className="inline-flex items-center gap-1 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+						>
+							Next <ChevronRight className="h-4 w-4" />
+						</button>
+					</div>
+				)}
+			</div>
+		</div>
+	);
 };
 
 export default CatalogPage;

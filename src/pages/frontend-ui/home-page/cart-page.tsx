@@ -1,225 +1,393 @@
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowLeft, CheckCircle2, CreditCard, Minus, Plus, ShoppingBag, Sparkles, Tag, Trash2, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Spinner } from "@/components/ui/spinner";
+import { useAuth } from "@/contexts/auth-context";
 import { useCart } from "@/contexts/cart-context";
-import { useNavigate } from "react-router";
-import { Trash2, ShoppingBag, ArrowLeft, Plus, Minus } from "lucide-react";
-import { useState } from "react";
+import { useToast } from "@/contexts/toast-context";
+import { useCoupons } from "@/hooks/use-books";
+import { useDocumentTitle } from "@/hooks/use-document-title";
+import { getErrorMessage } from "@/lib/api";
+import { formatCurrency } from "@/lib/format";
+import type { Coupon, Order } from "@/lib/types";
 
 const CartPage = () => {
-  const { items, removeFromCart, getTotalPrice, purchaseBooks, updateQuantity } = useCart();
-  const navigate = useNavigate();
-  const [coupon, setCoupon] = useState("");
+	useDocumentTitle("Shopping cart");
+	const navigate = useNavigate();
+	const { isAuthenticated } = useAuth();
+	const { items, removeFromCart, updateQuantity, clearCart, getTotalPrice, checkout, isSyncing } = useCart();
+	const { toast } = useToast();
+	const { data: coupons } = useCoupons();
 
-  const handleCheckout = () => {
-    purchaseBooks();
-    navigate("/library");
-  };
+	const [couponInput, setCouponInput] = useState("");
+	const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+	const [isCheckingOut, setIsCheckingOut] = useState(false);
+	const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
-  const handleApplyCoupon = () => {
-    if (coupon.trim() !== "") alert(`Coupon "${coupon}" applied!`);
-  };
-  
+	const subtotal = getTotalPrice();
+	const discount = useMemo(() => {
+		if (!appliedCoupon) return 0;
+		return appliedCoupon.type === "percent"
+			? Math.round(((subtotal * appliedCoupon.value) / 100) * 100) / 100
+			: Math.min(appliedCoupon.value, subtotal);
+	}, [appliedCoupon, subtotal]);
+	const total = Math.max(0, subtotal - discount);
 
-  if (items.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20 pt-24 pb-16">
-        <div className="max-w-4xl mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
-            className="text-center py-20"
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="relative inline-block mb-8"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-pink-300 via-purple-300 to-blue-300 rounded-full blur-3xl opacity-25 animate-pulse" />
-              <div className="relative bg-white dark:bg-gray-900 rounded-full p-10 shadow-2xl">
-                <ShoppingBag className="h-20 w-20 text-pink-500 dark:text-purple-400" />
-              </div>
-            </motion.div>
+	const applyCoupon = (code = couponInput) => {
+		const normalized = code.trim().toUpperCase();
+		if (!normalized) {
+			toast({ type: "error", title: "Enter a coupon code" });
+			return;
+		}
+		const match = coupons?.find((coupon) => coupon.code === normalized);
+		if (!match) {
+			toast({
+				type: "error",
+				title: "Invalid coupon",
+				description: "Try READ10, READVERSE20, or SAVE5.",
+			});
+			return;
+		}
+		setAppliedCoupon(match);
+		setCouponInput(match.code);
+		toast({ type: "success", title: "Coupon applied", description: match.label });
+	};
 
-            <motion.h2
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-4xl font-bold mb-4 bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 bg-clip-text text-transparent"
-            >
-              Your cart is empty
-            </motion.h2>
+	const handleCheckout = async () => {
+		if (!isAuthenticated) {
+			toast({
+				type: "info",
+				title: "Sign in to checkout",
+				description: "Your cart will be waiting for you.",
+			});
+			navigate("/login?returnTo=/cart");
+			return;
+		}
 
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="text-gray-600 dark:text-gray-400 mb-10 text-lg"
-            >
-              Start your reading journey and discover amazing books today!
-            </motion.p>
+		setIsCheckingOut(true);
+		try {
+			const order = await checkout(appliedCoupon?.code);
+			setCompletedOrder(order);
+			setAppliedCoupon(null);
+			setCouponInput("");
+		} catch (error) {
+			toast({
+				type: "error",
+				title: "Checkout failed",
+				description: getErrorMessage(error),
+			});
+		} finally {
+			setIsCheckingOut(false);
+		}
+	};
 
-            <motion.button
-              type="button"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate("/catalog")}
-              className="px-10 py-4 rounded-2xl bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 text-white hover:from-pink-600 hover:via-purple-600 hover:to-blue-600 transition-all duration-300 shadow-xl hover:shadow-2xl font-semibold text-lg flex items-center justify-center gap-3 mx-auto"
-            >
-              Browse Books
-              <ShoppingBag className="h-5 w-5 animate-bounce" />
-            </motion.button>
-          </motion.div>
-        </div>
-      </div>
-    );
-  }
+	if (items.length === 0 && !completedOrder) {
+		return (
+			<div className="min-h-[70vh] px-4 py-16">
+				<div className="mx-auto max-w-2xl">
+					<EmptyState
+						icon={ShoppingBag}
+						title="Your cart is empty"
+						description="Browse the catalog and add a few books to start your next reading adventure."
+						action={
+							<Link
+								to="/catalog"
+								className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground transition hover:scale-[1.02] hover:opacity-90"
+							>
+								Browse books <Sparkles className="h-4 w-4" />
+							</Link>
+						}
+					/>
+				</div>
+			</div>
+		);
+	}
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20 pt-24 pb-16">
-      <div className="max-w-6xl mx-auto px-4">
-        {/* Header */}
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="flex items-center mb-4 text-gray-500 hover:text-foreground transition"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Continue Shopping
-          </button>
+	return (
+		<div className="min-h-screen pb-16 pt-10">
+			<div className="mx-auto max-w-6xl px-4 sm:px-6">
+				<button
+					type="button"
+					onClick={() => navigate(-1)}
+					className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+				>
+					<ArrowLeft className="h-4 w-4" /> Continue shopping
+				</button>
 
-          <h1 className="text-4xl font-bold text-foreground mb-2">Shopping Cart</h1>
-          <p className="text-muted-foreground">{items.length} items in your cart</p>
-        </motion.div>
+				<div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+					<div>
+						<h1 className="text-4xl font-bold text-foreground">Shopping cart</h1>
+						<p className="mt-1 text-muted-foreground">
+							{items.length} title{items.length === 1 ? "" : "s"} ready to join your library
+						</p>
+					</div>
+					{isSyncing && (
+						<span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+							<Spinner className="h-4 w-4" /> Syncing…
+						</span>
+					)}
+				</div>
 
-        {/* Layout */}
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left Side - Items */}
-          <div className="lg:col-span-2 space-y-4">
-            {items.map((item, index) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all"
-              >
-                <div className="flex gap-6 items-center">
-                  <img
-                    src={item.cover}
-                    alt={item.title}
-                    className="w-24 h-32 object-cover rounded-lg shadow-md"
-                  />
+				<div className="grid gap-8 lg:grid-cols-[1fr_380px]">
+					<div className="space-y-4">
+						<AnimatePresence initial={false}>
+							{items.map((item) => (
+								<motion.div
+									key={item.id}
+									layout
+									initial={{ opacity: 0, y: 12 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, x: -40, height: 0 }}
+									className="flex gap-4 rounded-2xl border border-border bg-card p-4 shadow-elegant sm:gap-6 sm:p-5"
+								>
+									<Link to={`/book/${item.id}`} className="shrink-0">
+										<img src={item.cover} alt={item.title} className="h-32 w-24 rounded-xl object-cover sm:h-36 sm:w-28" />
+									</Link>
 
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-foreground mb-1">{item.title}</h3>
-                    <p className="text-muted-foreground mb-4">{item.author}</p>
+									<div className="flex min-w-0 flex-1 flex-col">
+										<div className="flex items-start justify-between gap-3">
+											<div className="min-w-0">
+												<Link
+													to={`/book/${item.id}`}
+													className="line-clamp-2 text-lg font-bold text-foreground transition hover:text-primary"
+												>
+													{item.title}
+												</Link>
+												<p className="mt-0.5 text-sm text-muted-foreground">{item.author}</p>
+											</div>
+											<button
+												type="button"
+												onClick={() => removeFromCart(item.id)}
+												className="rounded-lg p-2 text-muted-foreground transition hover:bg-red-500/10 hover:text-red-500"
+												aria-label={`Remove ${item.title}`}
+											>
+												<Trash2 className="h-4 w-4" />
+											</button>
+										</div>
 
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-2xl font-bold text-pink-500 dark:text-purple-400">
-                        ${item.price}
-                      </span>
+										<div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-4">
+											<div className="inline-flex items-center rounded-xl border border-border bg-background">
+												<button
+													type="button"
+													onClick={() => updateQuantity(item.id, item.quantity - 1)}
+													disabled={item.quantity <= 1}
+													className="p-2.5 text-muted-foreground transition hover:text-foreground disabled:opacity-40"
+													aria-label="Decrease quantity"
+												>
+													<Minus className="h-4 w-4" />
+												</button>
+												<span className="w-9 text-center text-sm font-semibold text-foreground">{item.quantity}</span>
+												<button
+													type="button"
+													onClick={() => updateQuantity(item.id, item.quantity + 1)}
+													className="p-2.5 text-muted-foreground transition hover:text-foreground"
+													aria-label="Increase quantity"
+												>
+													<Plus className="h-4 w-4" />
+												</button>
+											</div>
+											<div className="text-right">
+												<p className="text-lg font-bold text-primary">{formatCurrency(item.price * item.quantity)}</p>
+												<p className="text-xs text-muted-foreground">{formatCurrency(item.price)} each</p>
+											</div>
+										</div>
+									</div>
+								</motion.div>
+							))}
+						</AnimatePresence>
 
-                      {/* Quantity Selector */}
-                      <div className="flex items-center border rounded-lg overflow-hidden">
-                        <button type="button"
-                          onClick={() =>
-                            updateQuantity(item.id, Math.max((item.quantity || 1) - 1, 1))
-                          }
-                          className="px-3 py-1 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <span className="px-4 py-1 text-foreground">{item.quantity || 1}</span>
-                        <button type="button"
-                          onClick={() =>
-                            updateQuantity(item.id, (item.quantity || 1) + 1)
-                          }
-                          className="px-3 py-1 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
+						<div className="flex items-center justify-between">
+							<Link to="/catalog" className="text-sm font-medium text-primary hover:underline">
+								+ Add more books
+							</Link>
+							<button
+								type="button"
+								onClick={() => {
+									clearCart();
+									toast({ type: "info", title: "Cart cleared" });
+								}}
+								className="text-sm font-medium text-muted-foreground transition hover:text-red-500"
+							>
+								Clear cart
+							</button>
+						</div>
 
-                    <button type="button"
-                      onClick={() => removeFromCart(item.id)}
-                      className="flex items-center text-red-500 hover:text-red-600 hover:bg-red-50 px-3 py-1 rounded-md transition"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" /> Remove
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-            
+						<div className="rounded-2xl border border-border bg-card p-5">
+							<div className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+								<Tag className="h-4 w-4 text-primary" /> Have a coupon?
+							</div>
+							<div className="flex gap-2">
+								<input
+									type="text"
+									value={couponInput}
+									onChange={(event) => setCouponInput(event.target.value.toUpperCase())}
+									placeholder="Enter code"
+									className="min-w-0 flex-1 rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground uppercase placeholder:normal-case placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+								/>
+								<button
+									type="button"
+									onClick={() => applyCoupon()}
+									className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+								>
+									Apply
+								</button>
+							</div>
+							{(coupons ?? []).length > 0 && (
+								<div className="mt-3 flex flex-wrap gap-2">
+									{coupons?.map((coupon) => (
+										<button
+											key={coupon.code}
+											type="button"
+											onClick={() => applyCoupon(coupon.code)}
+											className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+												appliedCoupon?.code === coupon.code
+													? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+													: "border-border bg-muted text-muted-foreground hover:text-foreground"
+											}`}
+										>
+											{coupon.code} · {coupon.label}
+										</button>
+									))}
+								</div>
+							)}
+							{appliedCoupon && (
+								<div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400">
+									<span className="inline-flex items-center gap-2 font-medium">
+										<CheckCircle2 className="h-4 w-4" /> {appliedCoupon.code} applied
+									</span>
+									<button
+										type="button"
+										onClick={() => {
+											setAppliedCoupon(null);
+											setCouponInput("");
+										}}
+										className="rounded p-0.5 hover:bg-emerald-500/10"
+										aria-label="Remove coupon"
+									>
+										<X className="h-4 w-4" />
+									</button>
+								</div>
+							)}
+						</div>
+					</div>
 
-            {/* Coupon */}
-            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 mt-4 flex gap-4 items-center">
-              <input
-                type="text"
-                placeholder="Coupon Code"
-                value={coupon}
-                onChange={(e) => setCoupon(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-background text-foreground"
-              />
-              <button type="button"
-                onClick={handleApplyCoupon}
-                className="px-6 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition shadow"
-              >
-                Apply
-              </button>
-            </div>
-          </div>
+					<motion.div
+						initial={{ opacity: 0, y: 16 }}
+						animate={{ opacity: 1, y: 0 }}
+						className="lg:sticky lg:top-24 lg:h-fit"
+					>
+						<div className="rounded-2xl border border-border bg-card p-6 shadow-elegant">
+							<h2 className="mb-5 text-xl font-bold text-foreground">Order summary</h2>
+							<div className="space-y-3 border-b border-border pb-5 text-sm">
+								<div className="flex justify-between text-muted-foreground">
+									<span>Subtotal</span>
+									<span className="font-medium text-foreground">{formatCurrency(subtotal)}</span>
+								</div>
+								<div className="flex justify-between text-muted-foreground">
+									<span>Discount</span>
+									<span className={discount > 0 ? "font-medium text-emerald-600 dark:text-emerald-400" : ""}>
+										{discount > 0 ? `−${formatCurrency(discount)}` : formatCurrency(0)}
+									</span>
+								</div>
+								<div className="flex justify-between text-muted-foreground">
+									<span>Tax</span>
+									<span>{formatCurrency(0)}</span>
+								</div>
+							</div>
+							<div className="flex justify-between py-5 text-lg font-bold text-foreground">
+								<span>Total</span>
+								<span className="text-primary">{formatCurrency(total)}</span>
+							</div>
 
-          {/* Right Side - Summary */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-1">
-            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 sticky top-24">
-              <h2 className="text-2xl font-bold text-foreground mb-6">Order Summary</h2>
+							<button
+								type="button"
+								onClick={handleCheckout}
+								disabled={isCheckingOut}
+								className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-4 font-semibold text-primary-foreground shadow-elegant transition hover:scale-[1.01] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+							>
+								{isCheckingOut ? (
+									<>
+										<Spinner className="h-5 w-5" /> Processing…
+									</>
+								) : (
+									<>
+										<CreditCard className="h-5 w-5" />
+										{isAuthenticated ? "Complete purchase" : "Sign in to checkout"}
+									</>
+								)}
+							</button>
 
-              <div className="space-y-3 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Subtotal</span>
-                  <span>${getTotalPrice().toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Tax</span>
-                  <span>$0.00</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Discount</span>
-                  <span>$0.00</span>
-                </div>
-              </div>
+							<p className="mt-4 text-center text-xs text-muted-foreground">
+								Secure checkout · Instant access · Lifetime library
+							</p>
+						</div>
+					</motion.div>
+				</div>
+			</div>
 
-              <div className="flex justify-between text-xl font-bold text-foreground mb-6">
-                <span>Total</span>
-                <span className="text-pink-500 dark:text-purple-400">${getTotalPrice().toFixed(2)}</span>
-              </div>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                type="button"
-                onClick={handleCheckout}
-                className="w-full py-4 bg-pink-500 text-white hover:bg-pink-600 transition shadow-lg hover:shadow-2xl text-lg font-semibold rounded-2xl"
-              >
-                Checkout
-              </motion.button>
-
-              <p className="text-xs text-muted-foreground text-center mt-4">
-                Secure checkout • Instant access
-              </p>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-    </div>
-  );
+			<AnimatePresence>
+				{completedOrder && (
+					<motion.div
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						exit={{ opacity: 0 }}
+						className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+					>
+						<motion.div
+							initial={{ scale: 0.9, y: 24 }}
+							animate={{ scale: 1, y: 0 }}
+							transition={{ type: "spring", stiffness: 320, damping: 26 }}
+							className="w-full max-w-md rounded-3xl border border-border bg-card p-8 text-center shadow-elegant"
+						>
+							<motion.div
+								initial={{ scale: 0 }}
+								animate={{ scale: 1 }}
+								transition={{ delay: 0.1, type: "spring", stiffness: 300 }}
+								className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500"
+							>
+								<CheckCircle2 className="h-10 w-10" />
+							</motion.div>
+							<h2 className="text-2xl font-bold text-foreground">Purchase complete!</h2>
+							<p className="mt-2 text-muted-foreground">
+								{completedOrder.items.length} book
+								{completedOrder.items.length === 1 ? "" : "s"} added to your library.
+							</p>
+							<div className="my-5 rounded-2xl bg-muted/60 p-4 text-left text-sm">
+								<div className="flex justify-between">
+									<span className="text-muted-foreground">Order total</span>
+									<span className="font-semibold text-foreground">{formatCurrency(completedOrder.total)}</span>
+								</div>
+								{completedOrder.discount > 0 && (
+									<div className="mt-1 flex justify-between text-emerald-600 dark:text-emerald-400">
+										<span>You saved</span>
+										<span>{formatCurrency(completedOrder.discount)}</span>
+									</div>
+								)}
+							</div>
+							<div className="flex flex-col gap-2 sm:flex-row">
+								<button
+									type="button"
+									onClick={() => navigate("/library")}
+									className="flex-1 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground transition hover:opacity-90"
+								>
+									Go to library
+								</button>
+								<button
+									type="button"
+									onClick={() => setCompletedOrder(null)}
+									className="flex-1 rounded-xl border border-border px-5 py-3 font-semibold text-foreground transition hover:bg-muted"
+								>
+									Keep browsing
+								</button>
+							</div>
+						</motion.div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+		</div>
+	);
 };
 
 export default CartPage;

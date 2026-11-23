@@ -1,143 +1,216 @@
 import { motion } from "framer-motion";
-import { Book, Clock, Star } from "lucide-react";
+import { BookOpen, BookMarked, CheckCircle2, Clock, Search, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router";
 import BookCard from "@/components/book-card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { BookGridSkeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/auth-context";
+import { useDocumentTitle } from "@/hooks/use-document-title";
+import { useLibrary } from "@/hooks/use-library";
+import { formatDate } from "@/lib/format";
 
 const LibraryPage = () => {
-  const myBooks = [
-    {
-      id: "1",
-      title: "The Midnight Library",
-      author: "Matt Haig",
-      cover: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop",
-      rating: 4.8,
-      price: 12.99,
-      category: "Fiction",
-    },
-    {
-      id: "2",
-      title: "Atomic Habits",
-      author: "James Clear",
-      cover: "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=400&h=600&fit=crop",
-      rating: 4.9,
-      price: 15.99,
-      category: "Self-Help",
-    },
-  ];
+	useDocumentTitle("My library");
+	const { user } = useAuth();
+	const library = useLibrary();
+	const [search, setSearch] = useState("");
 
-  const recentlyRead = [
-    {
-      id: "3",
-      title: "Project Hail Mary",
-      author: "Andy Weir",
-      progress: 65,
-    },
-    {
-      id: "1",
-      title: "The Midnight Library",
-      author: "Matt Haig",
-      progress: 100,
-    },
-  ];
+	const books = library.data?.books ?? [];
+	const stats = library.data?.stats;
 
-  return (
-    <div className="min-h-screen py-12 bg-gradient-to-br from-pink-50 via-purple-50 to-cyan-50 dark:from-pink-950/20 dark:via-purple-950/20 dark:to-cyan-950/20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-12 text-center"
-        >
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">My Library</h1>
-          <p className="text-gray-600 dark:text-gray-300">Access all your purchased and saved books</p>
-        </motion.div>
+	const filtered = useMemo(() => {
+		const term = search.trim().toLowerCase();
+		if (!term) return books;
+		return books.filter(
+			(book) =>
+				book.title.toLowerCase().includes(term) ||
+				book.author.toLowerCase().includes(term) ||
+				book.category.toLowerCase().includes(term),
+		);
+	}, [books, search]);
 
-        {/* Stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12"
-        >
-          {[
-            { icon: Book, value: myBooks.length, label: "Books Owned", bg: "bg-purple-100", color: "text-purple-500" },
-            { icon: Clock, value: "24h", label: "Reading Time", bg: "bg-teal-100", color: "text-teal-500" },
-            { icon: Star, value: 8, label: "Books Completed", bg: "bg-yellow-100", color: "text-yellow-500" },
-          ].map((stat, index) => (
-            <div
-              key={index}
-              className="p-6 rounded-xl bg-white/80 dark:bg-gray-900/40 backdrop-blur-md border border-gray-200 dark:border-gray-700 shadow-xl hover:scale-105 transition-transform"
-            >
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-lg ${stat.bg}`}>
-                  <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-300">{stat.label}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </motion.div>
+	const continueReading = useMemo(
+		() =>
+			books
+				.filter((book) => book.progress > 0 && book.progress < 100)
+				.sort(
+					(a, b) => new Date(b.lastReadAt ?? b.purchasedAt).getTime() - new Date(a.lastReadAt ?? a.purchasedAt).getTime(),
+				),
+		[books],
+	);
 
-        {/* Recently Read */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Continue Reading</h2>
-          <div className="grid gap-4">
-            {recentlyRead.map((book, index) => (
-              <motion.div
-                key={book.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="p-4 rounded-xl bg-white/80 dark:bg-gray-900/40 backdrop-blur-md border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{book.title}</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-300 mb-3">{book.author}</p>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-500 dark:text-gray-300">Progress</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{book.progress}%</span>
-                      </div>
-                      <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-purple-400 transition-all"
-                          style={{ width: `${book.progress}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <button className="px-4 py-2 rounded-lg bg-purple-400 text-white font-medium hover:bg-purple-500 transition-all">
-                    {book.progress === 100 ? "Read Again" : "Continue"}
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </section>
+	const statCards = [
+		{
+			icon: BookMarked,
+			label: "Books owned",
+			value: stats?.owned ?? 0,
+			accent: "bg-primary/10 text-primary",
+		},
+		{
+			icon: BookOpen,
+			label: "In progress",
+			value: stats?.inProgress ?? 0,
+			accent: "bg-sky-500/10 text-sky-500",
+		},
+		{
+			icon: CheckCircle2,
+			label: "Completed",
+			value: stats?.completed ?? 0,
+			accent: "bg-emerald-500/10 text-emerald-500",
+		},
+		{
+			icon: Clock,
+			label: "Average progress",
+			value: `${stats?.averageProgress ?? 0}%`,
+			accent: "bg-accent/20 text-amber-600 dark:text-accent",
+		},
+	];
 
-        {/* My Books */}
-        <section>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">My Books</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {myBooks.map((book, index) => (
-              <motion.div
-                key={book.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <BookCard {...book} />
-              </motion.div>
-            ))}
-          </div>
-        </section>
-      </div>
-    </div>
-  );
+	return (
+		<div className="min-h-screen pb-16 pt-10">
+			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+				<motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+					<p className="mb-1 text-sm font-medium text-primary">Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""}</p>
+					<h1 className="text-4xl font-bold text-foreground md:text-5xl">My library</h1>
+					<p className="mt-2 text-muted-foreground">Every book you own, with your reading progress saved automatically.</p>
+				</motion.div>
+
+				<div className="mb-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
+					{statCards.map((stat, index) => (
+						<motion.div
+							key={stat.label}
+							initial={{ opacity: 0, y: 16 }}
+							animate={{ opacity: 1, y: 0 }}
+							transition={{ delay: index * 0.06 }}
+							className="rounded-2xl border border-border bg-card p-5 shadow-elegant"
+						>
+							<div className={`mb-3 inline-flex rounded-xl p-2.5 ${stat.accent}`}>
+								<stat.icon className="h-5 w-5" />
+							</div>
+							<div className="text-2xl font-bold text-foreground">{stat.value}</div>
+							<div className="text-sm text-muted-foreground">{stat.label}</div>
+						</motion.div>
+					))}
+				</div>
+
+				{library.isLoading ? (
+					<BookGridSkeleton count={8} />
+				) : library.isError ? (
+					<ErrorState
+						title="Could not load your library"
+						message="Please check your connection and try again."
+						onRetry={() => library.refetch()}
+					/>
+				) : books.length === 0 ? (
+					<EmptyState
+						icon={BookMarked}
+						title="Your library is waiting"
+						description="Buy your first book and it will appear here forever. Your progress syncs across devices."
+						action={
+							<Link
+								to="/catalog"
+								className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground transition hover:scale-[1.02] hover:opacity-90"
+							>
+								Discover books <Sparkles className="h-4 w-4" />
+							</Link>
+						}
+					/>
+				) : (
+					<>
+						{continueReading.length > 0 && (
+							<section className="mb-12">
+								<div className="mb-5 flex items-center justify-between">
+									<h2 className="text-2xl font-bold text-foreground">Continue reading</h2>
+									<span className="text-sm text-muted-foreground">{continueReading.length} in progress</span>
+								</div>
+								<div className="grid gap-4">
+									{continueReading.map((book, index) => (
+										<motion.div
+											key={book.id}
+											initial={{ opacity: 0, x: -16 }}
+											animate={{ opacity: 1, x: 0 }}
+											transition={{ delay: index * 0.06 }}
+											className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-elegant sm:flex-row sm:items-center sm:p-5"
+										>
+											<img src={book.cover} alt={book.title} className="h-28 w-20 shrink-0 rounded-xl object-cover" />
+											<div className="min-w-0 flex-1">
+												<Link
+													to={`/book/${book.id}`}
+													className="line-clamp-1 text-lg font-bold text-foreground transition hover:text-primary"
+												>
+													{book.title}
+												</Link>
+												<p className="text-sm text-muted-foreground">{book.author}</p>
+												<div className="mt-3 space-y-1.5">
+													<div className="flex items-center justify-between text-xs">
+														<span className="text-muted-foreground">Last read {formatDate(book.lastReadAt ?? book.purchasedAt)}</span>
+														<span className="font-semibold text-foreground">{book.progress}%</span>
+													</div>
+													<div className="h-2 overflow-hidden rounded-full bg-muted">
+														<motion.div
+															initial={{ width: 0 }}
+															animate={{ width: `${book.progress}%` }}
+															transition={{ duration: 0.8, ease: "easeOut" }}
+															className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
+														/>
+													</div>
+												</div>
+											</div>
+											<Link
+												to={`/reader/${book.id}`}
+												className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+											>
+												<BookOpen className="h-4 w-4" /> Continue
+											</Link>
+										</motion.div>
+									))}
+								</div>
+							</section>
+						)}
+
+						<section>
+							<div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+								<h2 className="text-2xl font-bold text-foreground">All books</h2>
+								<div className="relative w-full sm:w-72">
+									<Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+									<input
+										type="search"
+										value={search}
+										onChange={(event) => setSearch(event.target.value)}
+										placeholder="Search your library…"
+										className="w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+									/>
+								</div>
+							</div>
+
+							{filtered.length === 0 ? (
+								<EmptyState
+									icon={Search}
+									title="No matches in your library"
+									description={`Nothing matched “${search}”. Try a different title or author.`}
+								/>
+							) : (
+								<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+									{filtered.map((book, index) => (
+										<motion.div
+											key={book.id}
+											initial={{ opacity: 0, y: 18 }}
+											animate={{ opacity: 1, y: 0 }}
+											transition={{ delay: Math.min(index * 0.04, 0.3) }}
+										>
+											<BookCard {...book} />
+										</motion.div>
+									))}
+								</div>
+							)}
+						</section>
+					</>
+				)}
+			</div>
+		</div>
+	);
 };
 
 export default LibraryPage;

@@ -1,142 +1,179 @@
-import { useState, useMemo, useEffect } from "react";
-import { X, Search as SearchIcon } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowRight, Loader2, Search as SearchIcon, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { booksData } from "@/data/books";
+import { useDebouncedValue } from "@/hooks/use-debounce";
+import { api } from "@/lib/api";
+import { formatCurrency } from "@/lib/format";
+import type { BooksResponse } from "@/lib/types";
 
 interface SearchModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+	isOpen: boolean;
+	onClose: () => void;
 }
 
 const SearchModal = ({ isOpen, onClose }: SearchModalProps) => {
-  const [searchQuery, setSearchQuery] = useState("");
+	const [searchQuery, setSearchQuery] = useState("");
+	const debounced = useDebouncedValue(searchQuery, 250);
+	const inputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Clear search EVERY time modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setSearchQuery("");
-    }
-  }, [isOpen]);
+	const trimmed = debounced.trim();
 
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+	const { data, isFetching } = useQuery({
+		queryKey: ["search", trimmed],
+		enabled: isOpen && trimmed.length > 0,
+		queryFn: async () => {
+			const response = await api.get<BooksResponse>("/books", {
+				params: { search: trimmed, limit: 8, sort: "popular" },
+			});
+			return response.data;
+		},
+	});
 
-    const query = searchQuery.toLowerCase();
+	const { data: trending } = useQuery({
+		queryKey: ["search-trending"],
+		enabled: isOpen,
+		staleTime: 5 * 60_000,
+		queryFn: async () => {
+			const response = await api.get<BooksResponse>("/books", {
+				params: { tag: "trending", limit: 4 },
+			});
+			return response.data.books;
+		},
+	});
 
-    return booksData
-      .filter(
-        (book) =>
-          book.title.toLowerCase().includes(query) ||
-          book.author.toLowerCase().includes(query) ||
-          book.category.toLowerCase().includes(query)
-      )
-      .slice(0, 8);
-  }, [searchQuery]);
+	useEffect(() => {
+		if (isOpen) {
+			setSearchQuery("");
+			const timer = setTimeout(() => inputRef.current?.focus(), 80);
+			document.body.style.overflow = "hidden";
+			return () => {
+				clearTimeout(timer);
+				document.body.style.overflow = "";
+			};
+		}
+		document.body.style.overflow = "";
+	}, [isOpen]);
 
-  const handleClose = () => {
-    setSearchQuery("");
-    onClose();
-  };
+	useEffect(() => {
+		if (!isOpen) return;
+		const handler = (event: KeyboardEvent) => {
+			if (event.key === "Escape") onClose();
+		};
+		window.addEventListener("keydown", handler);
+		return () => window.removeEventListener("keydown", handler);
+	}, [isOpen, onClose]);
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* BACKDROP */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
-          />
+	const results = useMemo(() => data?.books ?? [], [data]);
 
-          {/* MODAL */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -20 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 w-full max-w-2xl mx-4 bg-[hsl(40,20%,97%)] rounded-xl shadow-xl z-50 overflow-hidden"
-          >
-            {/* SEARCH BAR */}
-            <div className="p-4 border-b border-[hsl(40,15%,85%)]">
-              <div className="relative">
-                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[hsl(230,15%,45%)]" />
-                <input
-                  type="text"
-                  placeholder="Search books by title, author, or category..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-12 py-3 bg-transparent text-lg focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg hover:bg-[hsl(40,15%,90%)]"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
+	return (
+		<AnimatePresence>
+			{isOpen && (
+				<>
+					<motion.div
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						exit={{ opacity: 0 }}
+						onClick={onClose}
+						className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm"
+					/>
 
-            {/* RESULTS */}
-            <div className="max-h-[60vh] overflow-y-auto">
-              {!searchQuery.trim() ? (
-                <div className="p-8 text-center text-[hsl(230,15%,45%)]">
-                  Start typing to search for books…
-                </div>
-              ) : searchResults.length > 0 ? (
-                <div className="p-2">
-                  {searchResults.map((book) => (
-                    <Link
-                      key={book.id}
-                      to={`/book/${book.id}`}
-                      onClick={handleClose}
-                      className="flex gap-4 p-3 rounded-lg hover:bg-[hsl(40,15%,90%)]"
-                    >
-                      <img
-                        src={book.cover}
-                        alt={book.title}
-                        className="w-12 h-16 object-cover rounded"
-                      />
-                      <div className="min-w-0">
-                        <h3 className="font-semibold truncate">{book.title}</h3>
-                        <p className="text-sm opacity-70 truncate">
-                          {book.author}
-                        </p>
-                        <div className="flex gap-2 mt-1">
-                          <span className="text-xs px-2 py-0.5 rounded bg-[hsl(230,45%,25%)] text-white">
-                            {book.category}
-                          </span>
-                          <span className="font-semibold">
-                            ${book.price.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 text-center">
-                  <p className="opacity-70 mb-4">
-                    No books found for "{searchQuery}"
-                  </p>
-                  <Link
-                    to="/catalog"
-                    onClick={handleClose}
-                    className="px-6 py-2 rounded-lg bg-[hsl(230,45%,25%)] text-white font-medium"
-                  >
-                    Browse All Books
-                  </Link>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
+					<motion.div
+						role="dialog"
+						aria-modal="true"
+						aria-label="Search books"
+						initial={{ opacity: 0, scale: 0.96, y: -16 }}
+						animate={{ opacity: 1, scale: 1, y: 0 }}
+						exit={{ opacity: 0, scale: 0.96, y: -16 }}
+						transition={{ type: "spring", stiffness: 380, damping: 32 }}
+						className="fixed left-1/2 top-24 z-[80] mx-4 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-card shadow-elegant"
+					>
+						<div className="flex items-center gap-3 border-b border-border p-4">
+							<SearchIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
+							<input
+								ref={inputRef}
+								type="text"
+								placeholder="Search by title, author, or category…"
+								value={searchQuery}
+								onChange={(event) => setSearchQuery(event.target.value)}
+								className="min-w-0 flex-1 bg-transparent text-lg text-foreground placeholder:text-muted-foreground focus:outline-none"
+							/>
+							{isFetching && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+							<button
+								type="button"
+								onClick={onClose}
+								className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+								aria-label="Close search"
+							>
+								<X className="h-5 w-5" />
+							</button>
+						</div>
+
+						<div className="max-h-[60vh] overflow-y-auto">
+							{!trimmed ? (
+								<div className="p-4">
+									<p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+										Trending searches
+									</p>
+									{(trending ?? []).map((book) => (
+										<Link
+											key={book.id}
+											to={`/book/${book.id}`}
+											onClick={onClose}
+											className="flex items-center gap-3 rounded-xl p-3 transition hover:bg-muted"
+										>
+											<img src={book.cover} alt={book.title} className="h-14 w-10 rounded object-cover" />
+											<div className="min-w-0 flex-1">
+												<p className="truncate font-semibold text-foreground">{book.title}</p>
+												<p className="truncate text-sm text-muted-foreground">{book.author}</p>
+											</div>
+											<ArrowRight className="h-4 w-4 text-muted-foreground" />
+										</Link>
+									))}
+									{!trending && (
+										<p className="px-2 py-6 text-center text-sm text-muted-foreground">Start typing to search the catalog…</p>
+									)}
+								</div>
+							) : results.length > 0 ? (
+								<div className="p-2">
+									{results.map((book) => (
+										<Link
+											key={book.id}
+											to={`/book/${book.id}`}
+											onClick={onClose}
+											className="flex items-center gap-4 rounded-xl p-3 transition hover:bg-muted"
+										>
+											<img src={book.cover} alt={book.title} className="h-16 w-11 rounded object-cover" />
+											<div className="min-w-0 flex-1">
+												<p className="truncate font-semibold text-foreground">{book.title}</p>
+												<p className="truncate text-sm text-muted-foreground">{book.author}</p>
+												<span className="mt-1 inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+													{book.category}
+												</span>
+											</div>
+											<span className="font-semibold text-primary">{formatCurrency(book.price)}</span>
+										</Link>
+									))}
+								</div>
+							) : (
+								<div className="p-10 text-center">
+									<p className="text-muted-foreground">No books found for “{searchQuery}”</p>
+									<Link
+										to="/catalog"
+										onClick={onClose}
+										className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+									>
+										Browse the full catalog <ArrowRight className="h-4 w-4" />
+									</Link>
+								</div>
+							)}
+						</div>
+					</motion.div>
+				</>
+			)}
+		</AnimatePresence>
+	);
 };
 
 export default SearchModal;

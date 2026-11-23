@@ -1,108 +1,136 @@
-import { BookOpen, Github, Mail, Twitter } from "lucide-react";
+import { BookOpen, Github, Mail, Send, Twitter } from "lucide-react";
+import { useId, useState } from "react";
+import { Link } from "react-router";
+import { useToast } from "@/contexts/toast-context";
+
+const FooterLink = ({ to, children }: { to: string; children: React.ReactNode }) => (
+	<Link to={to} className="text-sm text-muted-foreground transition-smooth hover:text-foreground">
+		{children}
+	</Link>
+);
 
 const FrontendFooter = () => {
-   return (
-    <footer className="bg-white border-t border-[hsl(40,15%,85%)] mt-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Brand */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-[hsl(230,45%,25%)]">
-                <BookOpen className="h-5 w-5 text-[hsl(40,20%,97%)]" />
-              </div>
-              <span className="font-bold text-lg">ReadVerse</span>
-            </div>
-            <p className="text-sm text-[hsl(230,15%,45%)]">
-              Your gateway to endless stories and knowledge. Read, discover, and grow.
-            </p>
-          </div>
+	const newsletterEmailId = useId();
+	const { toast } = useToast();
+	const [email, setEmail] = useState("");
 
-          {/* Quick Links */}
-          <div>
-            <h3 className="font-semibold mb-4">Quick Links</h3>
-            <ul className="space-y-2">
-              <li>
-                <a href="/catalog" className="text-sm text-[hsl(230,15%,45%)] hover:text-[hsl(230,25%,15%)] transition-all duration-300">
-                  Browse Books
-                </a>
-              </li>
-              <li>
-                <a href="/library" className="text-sm text-[hsl(230,15%,45%)] hover:text-[hsl(230,25%,15%)] transition-all duration-300">
-                  My Library
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-[hsl(230,15%,45%)] hover:text-[hsl(230,25%,15%)] transition-all duration-300">
-                  About Us
-                </a>
-              </li>
-            </ul>
-          </div>
+	const handleSubscribe = (event: React.FormEvent) => {
+		event.preventDefault();
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			toast({ type: "error", title: "Enter a valid email address" });
+			return;
+		}
+		toast({
+			type: "success",
+			title: "You're on the list!",
+			description: "We'll send you new releases and reading picks.",
+		});
+		setEmail("");
+	};
 
-          {/* Categories */}
-          <div>
-            <h3 className="font-semibold mb-4">Categories</h3>
-            <ul className="space-y-2">
-              <li>
-                <a href="#" className="text-sm text-[hsl(230,15%,45%)] hover:text-[hsl(230,25%,15%)] transition-all duration-300">
-                  Fiction
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-[hsl(230,15%,45%)] hover:text-[hsl(230,25%,15%)] transition-all duration-300">
-                  Non-Fiction
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-[hsl(230,15%,45%)] hover:text-[hsl(230,25%,15%)] transition-all duration-300">
-                  Science
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-sm text-[hsl(230,15%,45%)] hover:text-[hsl(230,25%,15%)] transition-all duration-300">
-                  Business
-                </a>
-              </li>
-            </ul>
-          </div>
+	return (
+		<footer className="mt-20 border-t border-border bg-card/70 backdrop-blur-xl">
+			<div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+				<div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-5">
+					<div className="space-y-4 lg:col-span-2">
+						<Link to="/" className="flex items-center gap-2">
+							<div className="rounded-lg bg-primary p-2">
+								<BookOpen className="h-5 w-5 text-primary-foreground" />
+							</div>
+							<span className="text-lg font-bold text-foreground">ReadVerse</span>
+						</Link>
+						<p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+							Your gateway to endless stories and knowledge. Read, discover, and grow — wherever you are.
+						</p>
+						<form onSubmit={handleSubscribe} className="flex max-w-sm gap-2">
+							<label htmlFor={newsletterEmailId} className="sr-only">
+								Email address
+							</label>
+							<input
+								id={newsletterEmailId}
+								type="email"
+								value={email}
+								onChange={(event) => setEmail(event.target.value)}
+								placeholder="you@example.com"
+								className="min-w-0 flex-1 rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+							/>
+							<button
+								type="submit"
+								className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+							>
+								<Send className="h-4 w-4" />
+								<span className="hidden sm:inline">Subscribe</span>
+							</button>
+						</form>
+					</div>
 
-          {/* Connect */}
-          <div>
-            <h3 className="font-semibold mb-4">Connect</h3>
-            <div className="flex gap-3">
-              <a
-                href="#"
-                className="p-2 rounded-lg bg-[hsl(40,15%,90%)] hover:bg-[hsl(230,45%,25%)] hover:text-[hsl(40,20%,97%)] transition-all duration-300"
-              >
-                <Twitter className="h-5 w-5" />
-              </a>
-              <a
-                href="#"
-                className="p-2 rounded-lg bg-[hsl(40,15%,90%)] hover:bg-[hsl(230,45%,25%)] hover:text-[hsl(40,20%,97%)] transition-all duration-300"
-              >
-                <Github className="h-5 w-5" />
-              </a>
-              <a
-                href="#"
-                className="p-2 rounded-lg bg-[hsl(40,15%,90%)] hover:bg-[hsl(230,45%,25%)] hover:text-[hsl(40,20%,97%)] transition-all duration-300"
-              >
-                <Mail className="h-5 w-5" />
-              </a>
-            </div>
-          </div>
-        </div>
+					<div>
+						<h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-foreground">Explore</h3>
+						<ul className="space-y-2.5">
+							<li>
+								<FooterLink to="/catalog">Browse books</FooterLink>
+							</li>
+							<li>
+								<FooterLink to="/library">My library</FooterLink>
+							</li>
+							<li>
+								<FooterLink to="/cart">Shopping cart</FooterLink>
+							</li>
+							<li>
+								<FooterLink to="/signup">Create account</FooterLink>
+							</li>
+						</ul>
+					</div>
 
-        <div className="mt-8 pt-8 border-t border-[hsl(40,15%,85%)]">
-          <p className="text-center text-sm text-[hsl(230,15%,45%)]">
-            © 2024 ReadVerse. All rights reserved.
-          </p>
-        </div>
-      </div>
-    </footer>
-  );
+					<div>
+						<h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-foreground">Categories</h3>
+						<ul className="space-y-2.5">
+							<li>
+								<FooterLink to="/catalog?category=Fiction">Fiction</FooterLink>
+							</li>
+							<li>
+								<FooterLink to="/catalog?category=Science%20Fiction">Science fiction</FooterLink>
+							</li>
+							<li>
+								<FooterLink to="/catalog?category=Business">Business</FooterLink>
+							</li>
+							<li>
+								<FooterLink to="/catalog?category=Self-Help">Self-help</FooterLink>
+							</li>
+						</ul>
+					</div>
+
+					<div>
+						<h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-foreground">Connect</h3>
+						<div className="flex gap-2">
+							{[
+								{ icon: Twitter, label: "Twitter", href: "https://twitter.com" },
+								{ icon: Github, label: "GitHub", href: "https://github.com" },
+								{ icon: Mail, label: "Email", href: "mailto:hello@readverse.dev" },
+							].map((social) => (
+								<a
+									key={social.label}
+									href={social.href}
+									target="_blank"
+									rel="noreferrer"
+									aria-label={social.label}
+									className="rounded-lg bg-muted p-2.5 text-muted-foreground transition hover:bg-primary hover:text-primary-foreground"
+								>
+									<social.icon className="h-5 w-5" />
+								</a>
+							))}
+						</div>
+						<p className="mt-4 text-xs text-muted-foreground">hello@readverse.dev</p>
+					</div>
+				</div>
+
+				<div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row">
+					<p>© {new Date().getFullYear()} ReadVerse. All rights reserved.</p>
+					<p>Built with React, Fastify, and PostgreSQL.</p>
+				</div>
+			</div>
+		</footer>
+	);
 };
-
-
 
 export default FrontendFooter;

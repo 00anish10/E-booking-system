@@ -1,116 +1,301 @@
+import { yupResolver } from "@hookform/resolvers/yup";
 import { motion } from "framer-motion";
-import { Link } from "react-router";
-import { BookOpen, Mail, Lock, User } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, BookOpen, Check, Eye, EyeOff, Lock, Mail, Sparkles, User } from "lucide-react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import * as yup from "yup";
+import { Spinner } from "@/components/ui/spinner";
+import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/contexts/toast-context";
+import { useDocumentTitle } from "@/hooks/use-document-title";
+import { getErrorMessage } from "@/lib/api";
+
+const schema = yup.object({
+	name: yup.string().trim().min(2, "Name must be at least 2 characters").max(80).required("Name is required"),
+	email: yup.string().trim().email("Enter a valid email address").required("Email is required"),
+	password: yup
+		.string()
+		.min(8, "Password must be at least 8 characters")
+		.matches(/[A-Z]/, "Include at least one uppercase letter")
+		.matches(/[0-9]/, "Include at least one number")
+		.required("Password is required"),
+	confirmPassword: yup
+		.string()
+		.oneOf([yup.ref("password")], "Passwords do not match")
+		.required("Confirm your password"),
+	acceptTerms: yup.boolean().oneOf([true], "Please accept the terms to continue").required(),
+});
+
+type FormValues = yup.InferType<typeof schema>;
 
 const SignupPage = () => {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+	useDocumentTitle("Create account");
+	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const returnTo = searchParams.get("returnTo") || "/catalog";
+	const { register: createAccount, isAuthenticated } = useAuth();
+	const { toast } = useToast();
+	const [showPassword, setShowPassword] = useState(false);
+	const nameId = useId();
+	const emailId = useId();
+	const passwordId = useId();
+	const confirmPasswordId = useId();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Signup:", { name, email, password });
-  };
+	const {
+		register,
+		handleSubmit,
+		watch,
+		formState: { errors, isSubmitting },
+	} = useForm<FormValues>({
+		resolver: yupResolver(schema),
+		defaultValues: {
+			name: "",
+			email: "",
+			password: "",
+			confirmPassword: "",
+			acceptTerms: false,
+		},
+	});
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-tr from-purple-200 via-pink-200 to-yellow-200 px-4 py-12">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="w-full max-w-md"
-      >
-        <Link to="/" className="flex items-center justify-center gap-2 mb-8">
-          <div className="p-2 rounded-lg bg-white shadow-md">
-            <BookOpen className="h-6 w-6 text-pink-500" />
-          </div>
-          <span className="font-bold text-2xl text-white">ReadVerse</span>
-        </Link>
+	const password = watch("password");
 
-        <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-white/30 p-8 transition-all hover:shadow-2xl">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">Create Account</h1>
-            <p className="text-gray-500">Start your reading journey today</p>
-          </div>
+	useEffect(() => {
+		if (isAuthenticated) navigate(returnTo, { replace: true });
+	}, [isAuthenticated, navigate, returnTo]);
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Name */}
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input 
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/60 border border-gray-300 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 transition-all"
-                  required
-                />
-              </div>
-            </div>
+	const strength = useMemo(() => {
+		let score = 0;
+		if (password.length >= 8) score += 1;
+		if (/[A-Z]/.test(password)) score += 1;
+		if (/[0-9]/.test(password)) score += 1;
+		if (/[^A-Za-z0-9]/.test(password)) score += 1;
+		return score;
+	}, [password]);
 
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your.email@example.com"
-                  className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/60 border border-gray-300 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-300 transition-all"
-                  required
-                />
-              </div>
-            </div>
+	const strengthLabel = ["Too weak", "Weak", "Okay", "Good", "Strong"][strength];
 
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 rounded-lg bg-white/60 border border-gray-300 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-300 transition-all"
-                  required
-                />
-              </div>
-              <p className="mt-2 text-xs text-gray-500">Must be at least 8 characters long</p>
-            </div>
+	const onSubmit = async (values: FormValues) => {
+		try {
+			const user = await createAccount(values.name, values.email, values.password);
+			toast({
+				type: "success",
+				title: `Welcome to ReadVerse, ${user.name.split(" ")[0]}!`,
+				description: "Your account is ready. Let's find your first book.",
+			});
+			navigate(returnTo, { replace: true });
+		} catch (error) {
+			toast({
+				type: "error",
+				title: "Could not create your account",
+				description: getErrorMessage(error),
+			});
+		}
+	};
 
-            <button
-              type="submit"
-              className="w-full py-3 rounded-lg bg-pink-400 text-white font-medium hover:bg-pink-500 shadow-lg transition-all"
-            >
-              Create Account
-            </button>
-          </form>
+	return (
+		<div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[hsl(280,45%,22%)] via-[hsl(250,45%,24%)] to-[hsl(230,50%,18%)] px-4 py-12">
+			<motion.div
+				className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-pink-400/20 blur-3xl"
+				animate={{ y: [0, 50, 0], scale: [1, 1.2, 1] }}
+				transition={{ duration: 18, repeat: Number.POSITIVE_INFINITY }}
+			/>
+			<motion.div
+				className="absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-cyan-400/20 blur-3xl"
+				animate={{ y: [0, -40, 0], scale: [1, 1.1, 1] }}
+				transition={{ duration: 22, repeat: Number.POSITIVE_INFINITY }}
+			/>
 
-          <div className="mt-6 text-center text-sm text-gray-500">
-            Already have an account?{" "}
-            <Link to="/login" className="text-purple-500 font-medium hover:underline">
-              Sign in
-            </Link>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
+			<div className="relative grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-xl lg:grid-cols-2">
+				<div className="hidden flex-col justify-between p-10 text-white lg:flex">
+					<Link to="/" className="flex items-center gap-2">
+						<div className="rounded-xl bg-white/10 p-2.5">
+							<BookOpen className="h-6 w-6 text-accent" />
+						</div>
+						<span className="text-xl font-bold">ReadVerse</span>
+					</Link>
+
+					<div className="space-y-6">
+						<Sparkles className="h-8 w-8 text-accent" />
+						<h2 className="text-3xl font-bold leading-tight">
+							Start your reading
+							<br /> journey today.
+						</h2>
+						<ul className="space-y-3 text-white/80">
+							{[
+								"Preview any book for free",
+								"Track progress across devices",
+								"Build a library you own forever",
+								"Personalized recommendations",
+							].map((item) => (
+								<li key={item} className="flex items-center gap-3">
+									<span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/20 text-emerald-300">
+										<Check className="h-3.5 w-3.5" />
+									</span>
+									{item}
+								</li>
+							))}
+						</ul>
+					</div>
+
+					<p className="text-xs text-white/40">No credit card required to create an account.</p>
+				</div>
+
+				<div className="bg-card/95 p-8 sm:p-10">
+					<Link to="/" className="mb-6 flex items-center justify-center gap-2 lg:hidden">
+						<div className="rounded-lg bg-primary p-2">
+							<BookOpen className="h-5 w-5 text-primary-foreground" />
+						</div>
+						<span className="text-xl font-bold text-foreground">ReadVerse</span>
+					</Link>
+
+					<div className="mb-7 text-center">
+						<h1 className="text-3xl font-bold text-foreground">Create account</h1>
+						<p className="mt-2 text-muted-foreground">Start reading in under a minute</p>
+					</div>
+
+					<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+						<div>
+							<label htmlFor={nameId} className="mb-1.5 block text-sm font-medium text-foreground">
+								Full name
+							</label>
+							<div className="relative">
+								<User className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+								<input
+									id={nameId}
+									type="text"
+									autoComplete="name"
+									{...register("name")}
+									placeholder="Jane Reader"
+									className="w-full rounded-xl border border-border bg-background py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+								/>
+							</div>
+							{errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
+						</div>
+
+						<div>
+							<label htmlFor={emailId} className="mb-1.5 block text-sm font-medium text-foreground">
+								Email
+							</label>
+							<div className="relative">
+								<Mail className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+								<input
+									id={emailId}
+									type="email"
+									autoComplete="email"
+									{...register("email")}
+									placeholder="you@example.com"
+									className="w-full rounded-xl border border-border bg-background py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+								/>
+							</div>
+							{errors.email && <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>}
+						</div>
+
+						<div>
+							<label htmlFor={passwordId} className="mb-1.5 block text-sm font-medium text-foreground">
+								Password
+							</label>
+							<div className="relative">
+								<Lock className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+								<input
+									id={passwordId}
+									type={showPassword ? "text" : "password"}
+									autoComplete="new-password"
+									{...register("password")}
+									placeholder="At least 8 characters"
+									className="w-full rounded-xl border border-border bg-background py-3 pl-11 pr-11 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+								/>
+								<button
+									type="button"
+									onClick={() => setShowPassword((value) => !value)}
+									className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+									aria-label={showPassword ? "Hide password" : "Show password"}
+								>
+									{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+								</button>
+							</div>
+							{password && (
+								<div className="mt-2">
+									<div className="flex gap-1">
+										{[0, 1, 2, 3].map((index) => (
+											<div
+												key={index}
+												className={`h-1 flex-1 rounded-full transition ${
+													index < strength
+														? strength <= 1
+															? "bg-red-500"
+															: strength === 2
+																? "bg-amber-500"
+																: "bg-emerald-500"
+														: "bg-muted"
+												}`}
+											/>
+										))}
+									</div>
+									<p className="mt-1 text-xs text-muted-foreground">Strength: {strengthLabel}</p>
+								</div>
+							)}
+							{errors.password && <p className="mt-1 text-xs text-red-500">{errors.password.message}</p>}
+						</div>
+
+						<div>
+							<label htmlFor={confirmPasswordId} className="mb-1.5 block text-sm font-medium text-foreground">
+								Confirm password
+							</label>
+							<div className="relative">
+								<Lock className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+								<input
+									id={confirmPasswordId}
+									type="password"
+									autoComplete="new-password"
+									{...register("confirmPassword")}
+									placeholder="Repeat your password"
+									className="w-full rounded-xl border border-border bg-background py-3 pl-11 pr-4 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+								/>
+							</div>
+							{errors.confirmPassword && <p className="mt-1 text-xs text-red-500">{errors.confirmPassword.message}</p>}
+						</div>
+
+						<label className="flex cursor-pointer items-start gap-2 text-sm text-muted-foreground">
+							<input
+								type="checkbox"
+								{...register("acceptTerms")}
+								className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+							/>
+							<span>
+								I agree to the <span className="font-medium text-foreground">Terms of Service</span> and{" "}
+								<span className="font-medium text-foreground">Privacy Policy</span>.
+							</span>
+						</label>
+						{errors.acceptTerms && <p className="text-xs text-red-500">{errors.acceptTerms.message}</p>}
+
+						<button
+							type="submit"
+							disabled={isSubmitting}
+							className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 font-semibold text-primary-foreground shadow-elegant transition hover:opacity-90 disabled:opacity-60"
+						>
+							{isSubmitting ? (
+								<>
+									<Spinner className="h-5 w-5" /> Creating account…
+								</>
+							) : (
+								<>
+									Create account <ArrowRight className="h-4 w-4" />
+								</>
+							)}
+						</button>
+					</form>
+
+					<p className="mt-6 text-center text-sm text-muted-foreground">
+						Already have an account?{" "}
+						<Link to="/login" className="font-semibold text-primary hover:underline">
+							Sign in
+						</Link>
+					</p>
+				</div>
+			</div>
+		</div>
+	);
 };
 
 export default SignupPage;
